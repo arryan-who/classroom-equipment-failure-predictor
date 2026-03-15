@@ -1,0 +1,72 @@
+[
+    {
+        "equipment": "projector",
+        "features_used": [
+            "equipment_age_years",
+            "daily_usage_hours",
+            "maintenance_gap_days",
+            "last_maintenance_type",
+            "room_temperature",
+            "power_fluctuation_events",
+            "projector_operating_hours",
+            "filter_cleaning_gap_days"
+        ],
+        "accuracy": 0.9434343434343434,
+        "precision": 0.9433198380566802,
+        "recall": 1.0,
+        "f1_score": 0.9708333333333333,
+        "date": "2026-03-16"
+    },
+    {
+        "equipment": "smartboard",
+        "features_used": [
+            "equipment_age_years",
+            "daily_usage_hours",
+            "maintenance_gap_days",
+            "last_maintenance_type",
+            "power_fluctuation_events",
+            "touch_error_rate",
+            "firmware_update_gap_days"
+        ],
+        "accuracy": 0.968,
+        "precision": 0.968,
+        "recall": 1.0,
+        "f1_score": 0.983739837398374,
+        "date": "2026-03-16"
+    },
+    {
+        "equipment": "lighting",
+        "features_used": [
+            "equipment_age_years",
+            "daily_usage_hours",
+            "maintenance_gap_days",
+            "last_maintenance_type",
+            "power_fluctuation_events",
+            "switch_cycles_per_day",
+            "voltage_variation_events"
+        ],
+        "accuracy": 0.9384920634920635,
+        "precision": 0.9384920634920635,
+        "recall": 1.0,
+        "f1_score": 0.9682702149437052,
+        "date": "2026-03-16"
+    },
+    {
+        "equipment": "ac",
+        "features_used": [
+            "equipment_age_years",
+            "daily_usage_hours",
+            "maintenance_gap_days",
+            "last_maintenance_type",
+            "room_temperature",
+            "temperature_difference",
+            "room_occupancy",
+            "filter_cleaning_gap_days"
+        ],
+        "accuracy": 0.94831013916501,
+        "precision": 0.94831013916501,
+        "recall": 1.0,
+        "f1_score": 0.9734693877551021,
+        "date": "2026-03-16"
+    }
+]
