@@ -1,151 +1,140 @@
-import pandas as pd
 import numpy as np
-import random
+import pandas as pd
+import os
+from db_utils import create_table, insert_data
 
-rows = 10000
+np.random.seed(42)
 
-equipment_types = ["projector","smartboard","lighting","ac"]
+def sigmoid(x):
+    return 1 / (1 + np.exp(-x))
 
-data = []
 
-for i in range(rows):
+def random_location():
+    blocks = ["A", "B", "C"]
+    return np.random.choice(blocks), str(np.random.randint(101, 410))
 
-    equipment = random.choice(equipment_types)
 
-    equipment_age = np.random.randint(1,12)
+def generate_data(equipment, drift=1.0, n=500):
 
-    daily_usage_hours = np.random.uniform(1,10)
+    rows = []
 
-    maintenance_gap_days = np.random.randint(0,180)
+    for i in range(n):
 
-    last_maintenance_type = np.random.choice(
-        ["preventive","corrective"],
-        p=[0.75,0.25]
-    )
+        block, room = random_location()
 
-    room_temperature = np.random.uniform(20,35)
+        age = np.random.randint(1, 10)
+        usage = np.random.uniform(2, 10) * drift
+        maintenance_gap = np.random.randint(5, 60)
+        maintenance_type = np.random.choice([0, 1])
 
-    power_fluctuations = np.random.randint(0,5)
-
-    # equipment specific measurable factors
-
-    projector_operating_hours = np.random.randint(200,5000)
-
-    touch_error_rate = np.random.randint(0,12)
-
-    switch_cycles_per_day = np.random.randint(5,60)
-
-    room_occupancy = np.random.randint(10,80)
-
-    temperature_difference = np.random.uniform(3,15)
-
-    filter_cleaning_gap_days = np.random.randint(0,150)
-
-    firmware_update_gap_days = np.random.randint(0,300)
-
-    voltage_variation_events = np.random.randint(0,5)
-
-    # risk score initialization
-    risk = 0
-
-    # maintenance factor
-
-    if last_maintenance_type == "corrective":
-        risk += 0.8
-
-    # equipment specific risk logic
-
-    if equipment == "projector":
-
-        risk += (
-            0.25*equipment_age +
-            0.25*(projector_operating_hours/5000) +
-            0.2*daily_usage_hours +
-            0.15*(filter_cleaning_gap_days/150) +
-            0.15*(maintenance_gap_days/180)
+        base = (
+            0.3 * age +
+            0.4 * usage +
+            0.3 * maintenance_gap -
+            0.5 * (1 - maintenance_type)
         )
 
-    elif equipment == "smartboard":
+        row = {
+            "equipment_type": equipment,
+            "block": block,
+            "room_number": room,
+            "equipment_id": f"{equipment}_{i}",
 
-        risk += (
-            0.25*equipment_age +
-            0.2*touch_error_rate +
-            0.2*(firmware_update_gap_days/300) +
-            0.2*power_fluctuations +
-            0.15*daily_usage_hours
-        )
+            "age_years": age,
+            "daily_usage_hours": usage,
+            "days_since_last_maintenance": maintenance_gap,
+            "last_maintenance_type": maintenance_type,
 
-    elif equipment == "lighting":
+            "avg_temperature_week": 0,
+            "max_temperature_week": 0,
+            "filter_cleaning_gap_days": 0,
 
-        risk += (
-            0.25*equipment_age +
-            0.25*switch_cycles_per_day/60 +
-            0.2*voltage_variation_events +
-            0.15*daily_usage_hours +
-            0.15*(maintenance_gap_days/180)
-        )
+            "touch_responsiveness": 0,
+            "ghost_touch_issue": 0,
+            "software_updated_recently": 0,
 
-    elif equipment == "ac":
+            "switch_cycles_per_day": 0,
+            "frequent_flickering": 0,
 
-        risk += (
-            0.25*equipment_age +
-            0.25*temperature_difference/15 +
-            0.2*daily_usage_hours +
-            0.15*room_occupancy/80 +
-            0.15*(filter_cleaning_gap_days/150)
-        )
+            "desired_temperature": 0,
+            "occupancy_level": 0,
+        }
 
-    # convert risk score into probability
+        # PROJECTOR
+        if equipment == "projector":
+            row["avg_temperature_week"] = np.random.uniform(25, 35) * drift
+            row["max_temperature_week"] = row["avg_temperature_week"] + np.random.uniform(2, 8)
+            row["filter_cleaning_gap_days"] = np.random.randint(10, 90)
 
-    probability = 1 / (1 + np.exp(-risk))
+            base += (
+                0.3 * row["avg_temperature_week"] +
+                0.4 * row["max_temperature_week"] +
+                0.3 * row["filter_cleaning_gap_days"]
+            )
 
-    # simulate failure
+        # SMARTBOARD
+        elif equipment == "smartboard":
+            row["touch_responsiveness"] = np.random.choice([0, 1, 2])
+            row["ghost_touch_issue"] = np.random.choice([0, 1])
+            row["software_updated_recently"] = np.random.choice([0, 1])
 
-    failure = np.random.choice(
-        [0,1],
-        p=[1-probability, probability]
-    )
+            base += (
+                0.5 * row["touch_responsiveness"] +
+                0.4 * row["ghost_touch_issue"] -
+                0.3 * row["software_updated_recently"]
+            )
 
-    data.append([
-        equipment,
-        equipment_age,
-        daily_usage_hours,
-        maintenance_gap_days,
-        last_maintenance_type,
-        room_temperature,
-        power_fluctuations,
-        projector_operating_hours,
-        touch_error_rate,
-        switch_cycles_per_day,
-        room_occupancy,
-        temperature_difference,
-        filter_cleaning_gap_days,
-        firmware_update_gap_days,
-        voltage_variation_events,
-        failure
-    ])
+        # LIGHTING
+        elif equipment == "lighting":
+            row["switch_cycles_per_day"] = np.random.randint(5, 80)
+            row["frequent_flickering"] = np.random.choice([0, 1])
 
-columns = [
-    "equipment_type",
-    "equipment_age_years",
-    "daily_usage_hours",
-    "maintenance_gap_days",
-    "last_maintenance_type",
-    "room_temperature",
-    "power_fluctuation_events",
-    "projector_operating_hours",
-    "touch_error_rate",
-    "switch_cycles_per_day",
-    "room_occupancy",
-    "temperature_difference",
-    "filter_cleaning_gap_days",
-    "firmware_update_gap_days",
-    "voltage_variation_events",
-    "failure_within_30_days"
-]
+            base += (
+                0.4 * row["switch_cycles_per_day"] +
+                0.5 * row["frequent_flickering"]
+            )
 
-df = pd.DataFrame(data,columns=columns)
+        # AC
+        elif equipment == "ac":
+            row["avg_temperature_week"] = np.random.uniform(26, 40) * drift
+            row["max_temperature_week"] = row["avg_temperature_week"] + np.random.uniform(3, 10)
+            row["desired_temperature"] = np.random.uniform(18, 24)
+            row["occupancy_level"] = np.random.randint(5, 50)
+            row["filter_cleaning_gap_days"] = np.random.randint(10, 90)
 
-df.to_csv("data/equipment_data.csv",index=False)
+            cooling_load = row["avg_temperature_week"] - row["desired_temperature"]
 
-print("Dataset generated successfully")
+            base += (
+                0.3 * cooling_load +
+                0.3 * row["max_temperature_week"] +
+                0.2 * row["occupancy_level"]
+            )
+
+        prob = sigmoid(base / 10)
+        row["failure"] = np.random.choice([0, 1], p=[1 - prob, prob])
+
+        rows.append(row)
+
+    return pd.DataFrame(rows)
+
+
+def main():
+    os.makedirs("data", exist_ok=True)
+    create_table()
+
+    versions = {"v1": 1.0, "v2": 1.3, "v3": 1.6}
+    equipment_types = ["projector", "smartboard", "lighting", "ac"]
+
+    for v, drift in versions.items():
+        full = pd.DataFrame()
+
+        for eq in equipment_types:
+            df = generate_data(eq, drift)
+            full = pd.concat([full, df])
+
+        insert_data(full, v)
+        print(f"Inserted dataset {v} into database")
+
+
+if __name__ == "__main__":
+    main()
