@@ -1,149 +1,117 @@
 import os
 import json
-import numpy as np
+import joblib
 import pandas as pd
-from datetime import datetime
 
 from sklearn.model_selection import train_test_split
-from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
 
-# =========================
-# LOAD DATA
-# =========================
-df = pd.read_csv("data/equipment_data.csv")
+from sklearn.linear_model import LogisticRegression
+from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
 
-# Normalize column name (safety)
-df.columns = df.columns.str.strip()
+from db_utils import fetch_data
 
-if "equipment_type" not in df.columns:
-    raise ValueError("❌ 'equipment_type' column not found in dataset")
+# MODEL CONFIG
+MODELS = {
+    "logistic": LogisticRegression(max_iter=200),
+    "random_forest": RandomForestClassifier(n_estimators=50, max_depth=5),
+    "gradient_boosting": GradientBoostingClassifier(n_estimators=50)
+}
 
-# Normalize values (CRITICAL FIX)
-df["equipment_type"] = df["equipment_type"].str.strip().str.lower()
+VERSIONS = ["v1", "v2", "v3"]
+EQUIPMENT_TYPES = ["projector", "smartboard", "lighting", "ac"]
 
-print("\n📊 Available equipment types in dataset:")
-print(df["equipment_type"].value_counts())
+os.makedirs("models", exist_ok=True)
+os.makedirs("metrics", exist_ok=True)
 
-# =========================
-# FEATURE DEFINITIONS
-# =========================
+
+# FEATURE MAPPING PER EQUIPMENT
 FEATURES = {
     "projector": [
-        "equipment_age_years", "daily_usage_hours", "maintenance_gap_days",
-        "power_fluctuation_events", "room_temperature",
-        "projector_operating_hours", "filter_cleaning_gap_days"
+        "age_years", "daily_usage_hours", "days_since_last_maintenance",
+        "last_maintenance_type",
+        "avg_temperature_week", "max_temperature_week",
+        "filter_cleaning_gap_days"
     ],
+
     "smartboard": [
-        "equipment_age_years", "daily_usage_hours", "maintenance_gap_days",
-        "power_fluctuation_events", "touch_error_rate",
-        "firmware_update_gap_days"
+        "age_years", "daily_usage_hours", "days_since_last_maintenance",
+        "last_maintenance_type",
+        "touch_responsiveness", "ghost_touch_issue",
+        "software_updated_recently"
     ],
+
     "lighting": [
-        "equipment_age_years", "daily_usage_hours", "maintenance_gap_days",
-        "power_fluctuation_events", "switch_cycles_per_day",
-        "voltage_variation_events"
+        "age_years", "daily_usage_hours", "days_since_last_maintenance",
+        "last_maintenance_type",
+        "switch_cycles_per_day", "frequent_flickering"
     ],
+
     "ac": [
-        "equipment_age_years", "daily_usage_hours", "maintenance_gap_days",
-        "power_fluctuation_events", "room_temperature",
-        "temperature_difference", "room_occupancy",
+        "age_years", "daily_usage_hours", "days_since_last_maintenance",
+        "last_maintenance_type",
+        "avg_temperature_week", "max_temperature_week",
+        "desired_temperature", "occupancy_level",
         "filter_cleaning_gap_days"
     ]
 }
 
-TARGET = "failure_within_30_days"
 
-# =========================
-# SETUP
-# =========================
-os.makedirs("models", exist_ok=True)
-history = []
+def evaluate_model(y_true, y_pred):
+    return {
+        "accuracy": accuracy_score(y_true, y_pred),
+        "precision": precision_score(y_true, y_pred, zero_division=0),
+        "recall": recall_score(y_true, y_pred, zero_division=0),
+        "f1_score": f1_score(y_true, y_pred, zero_division=0)
+    }
 
-# =========================
-# TRAIN MODELS
-# =========================
-for equipment, features in FEATURES.items():
-    print(f"\n🔧 Training model for: {equipment.upper()}")
 
-    data = df[df["equipment_type"] == equipment].copy()
+def train():
 
-    # SAFETY CHECK
-    if len(data) == 0:
-        print(f"⚠️ No data found for '{equipment}', skipping...")
-        continue
+    all_results = []
 
-    # Ensure required features exist
-    missing_features = [f for f in features if f not in data.columns]
-    if missing_features:
-        print(f"⚠️ Missing features for {equipment}: {missing_features}, skipping...")
-        continue
+    for equipment in EQUIPMENT_TYPES:
+        for version in VERSIONS:
 
-    X = data[features]
-    y = data[TARGET]
+            print(f"\nTraining {equipment} | {version}")
 
-    # Another safety check
-    if len(X) < 5:
-        print(f"⚠️ Not enough data for {equipment}, skipping...")
-        continue
+            df = fetch_data(version, equipment)
 
-    # Split
-    X_train, X_test, y_train, y_test = train_test_split(
-        X, y, test_size=0.2, random_state=42
-    )
+            if df.empty:
+                print("No data found, skipping...")
+                continue
 
-    # Model
-    model = RandomForestClassifier(
-        n_estimators=100,
-        max_depth=6,
-        random_state=42
-    )
+            X = df[FEATURES[equipment]]
+            y = df["failure"]
 
-    model.fit(X_train, y_train)
+            X_train, X_test, y_train, y_test = train_test_split(
+                X, y, test_size=0.2, random_state=42
+            )
 
-    # Predict
-    y_pred = model.predict(X_test)
+            for model_name, model in MODELS.items():
 
-    # Metrics
-    acc = accuracy_score(y_test, y_pred)
-    prec = precision_score(y_test, y_pred, zero_division=0)
-    rec = recall_score(y_test, y_pred, zero_division=0)
-    f1 = f1_score(y_test, y_pred, zero_division=0)
+                model.fit(X_train, y_train)
+                preds = model.predict(X_test)
 
-    print(f"✅ Accuracy: {acc:.3f}")
-    print(f"✅ Precision: {prec:.3f}")
-    print(f"✅ Recall: {rec:.3f}")
-    print(f"✅ F1 Score: {f1:.3f}")
+                metrics = evaluate_model(y_test, preds)
 
-    # Save model
-    model_path = f"models/{equipment}_model.pkl"
-    pd.to_pickle(model, model_path)
+                model_path = f"models/{equipment}_{model_name}_{version}.pkl"
+                joblib.dump(model, model_path)
 
-    # Save history
-    history.append({
-        "equipment": equipment,
-        "features_used": features,
-        "accuracy": float(acc),
-        "precision": float(prec),
-        "recall": float(rec),
-        "f1_score": float(f1),
-        "date": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    })
+                result = {
+                    "equipment": equipment,
+                    "model": model_name,
+                    "version": version,
+                    **metrics
+                }
 
-# =========================
-# SAVE HISTORY
-# =========================
-history_path = "models/model_history.json"
+                all_results.append(result)
 
-if os.path.exists(history_path):
-    with open(history_path, "r") as f:
-        existing = json.load(f)
-else:
-    existing = []
+                print(f"{model_name} | F1: {metrics['f1_score']:.3f}")
 
-existing.extend(history)
+    with open("metrics/model_metrics.json", "w") as f:
+        json.dump(all_results, f, indent=4)
 
-with open(history_path, "w") as f:
-    json.dump(existing, f, indent=4)
 
-print("\n🎯 Training complete.")
+if __name__ == "__main__":
+    train()

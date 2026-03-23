@@ -110,8 +110,21 @@ def generate_data(equipment, drift=1.0, n=500):
                 0.2 * row["occupancy_level"]
             )
 
-        prob = sigmoid(base / 10)
-        row["failure"] = np.random.choice([0, 1], p=[1 - prob, prob])
+        # --- ADD NOISE TO BASE (realism)
+        noise = np.random.normal(0, 0.8)
+
+        # --- COMPUTE PROBABILITY WITH NOISE
+        prob = sigmoid((base + noise) / 10)
+
+        # --- REDUCE EXTREME CONFIDENCE (soft imbalance)
+        if prob > 0.7:
+            prob *= 0.7
+
+        # --- LABEL NOISE (simulate real-world unpredictability)
+        if np.random.rand() < 0.1:
+            row["failure"] = 1 - np.random.choice([0, 1], p=[1 - prob, prob])
+        else:
+            row["failure"] = np.random.choice([0, 1], p=[1 - prob, prob])
 
         rows.append(row)
 
