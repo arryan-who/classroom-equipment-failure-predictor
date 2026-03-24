@@ -1,86 +1,184 @@
 # Classroom Equipment Failure Predictor
 
-## 📌 Overview
-This project is a machine learning-based system designed to monitor classroom equipment and estimate their health status. It helps in proactive maintenance by analyzing operational conditions and providing actionable insights.
+A machine learning-based system to predict failure risk of classroom equipment such as projectors, ACs, lighting systems, and smartboards. The system integrates model lifecycle concepts like training, evaluation, and explainability into an interactive dashboard built using Streamlit.
 
 ---
 
-## 🎯 Objective
-- Predict equipment health using data-driven methods  
-- Reduce unexpected failures  
-- Enable proactive maintenance decisions  
+## 🚀 Objective
+
+To proactively identify equipment failure risks using historical data and operational parameters, enabling preventive maintenance and reducing downtime in smart classrooms.
 
 ---
 
-## 🧠 Key Features
-- Equipment-specific machine learning models  
-- Real-time health analysis via dashboard  
-- Interactive simulation of operating conditions  
-- Clear maintenance recommendations  
+## 🏗️ System Overview
+
+The system consists of:
+
+- Machine Learning Models trained on equipment-specific datasets  
+- Interactive Dashboard (Streamlit) for visualization and prediction  
+- Model Registry for managing trained models  
+- Explainability Module to understand feature impact  
+- Hybrid Prediction System combining ML with domain logic  
 
 ---
 
-## 🏗️ System Architecture
-- Synthetic Data Generation  
-- Model Training (Random Forest)  
-- Dashboard (Streamlit Interface)  
+## ⚙️ Features
+
+### 🔹 1. Overview Dashboard
+- Equipment distribution  
+- Failure rate analysis  
+- Usage vs failure insights  
+- Maintenance impact visualization  
 
 ---
 
-## ⚙️ Equipment Covered
-- Projector  
-- Smartboard  
-- Lighting  
-- Air Conditioner  
-
-Each equipment has a separate model due to different behavior patterns.
+### 🔹 2. Data Explorer
+- Equipment-specific dataset view  
+- Feature inspection  
+- Structured tabular visualization  
 
 ---
 
-## 📊 Features Used
-- Equipment age  
-- Usage hours  
-- Maintenance gap  
-- Power fluctuations  
-- Equipment-specific parameters  
+### 🔹 3. Prediction Module
+- Equipment selection (Projector, AC, Lighting, Smartboard)  
+- Dynamic input parameters  
+- Real-time failure prediction  
+
+#### ✅ Hybrid Prediction Logic
+- ML model generates base probability  
+- Rule-based adjustments applied for critical conditions:
+  - Ghost touch issues  
+  - Poor touch responsiveness  
+  - Long maintenance gaps  
+  - Corrective maintenance history  
 
 ---
 
-## 🤖 Machine Learning Model
-- Model: Random Forest Classifier  
-- Type: Supervised Learning  
-- Output: Probability converted into system health status  
+### 🔹 4. Explainability
+- Feature importance visualization  
+- Supports:
+  - Logistic Regression (coefficients)  
+  - Tree-based models (feature importance)  
+- Interactive Plotly charts  
 
 ---
 
-## 📈 Evaluation Metrics
-- Accuracy  
-- Precision  
-- Recall  
-- F1 Score  
+### 🔹 5. Model Evaluation (Post-Mortem)
+- Model performance summary  
+- Stability insights  
+- Limitations and real-world considerations  
 
 ---
 
-## 🧪 Data Source
-Synthetic dataset generated using:
-- Risk scoring logic  
-- Sigmoid probability  
-- Random noise for realism  
+## 📊 Technologies Used
+
+- Python  
+- Streamlit  
+- Scikit-learn  
+- Pandas  
+- Plotly  
+- Matplotlib  
 
 ---
 
-## ⚠️ Limitations
-- Uses synthetic data  
-- Requires real-world validation  
+## 📁 Project Structure
+# 🧠 Smart Classroom Equipment Failure Predictor
+
+A machine learning-based system to predict failure risk of classroom equipment such as projectors, ACs, lighting systems, and smartboards. The system integrates model lifecycle concepts like training, evaluation, and explainability into an interactive dashboard built using Streamlit.
 
 ---
 
-## 🚀 Future Scope
-- IoT sensor integration  
-- Cloud deployment  
-- Automated maintenance scheduling  
+## 🚀 Objective
+
+To proactively identify equipment failure risks using historical data and operational parameters, enabling preventive maintenance and reducing downtime in smart classrooms.
 
 ---
+
+## 🏗️ System Overview
+
+The system consists of:
+
+- Machine Learning Models trained on equipment-specific datasets  
+- Interactive Dashboard (Streamlit) for visualization and prediction  
+- Model Registry for managing trained models  
+- Explainability Module to understand feature impact  
+- Hybrid Prediction System combining ML with domain logic  
+
+---
+
+## ⚙️ Features
+
+### 🔹 1. Overview Dashboard
+- Equipment distribution  
+- Failure rate analysis  
+- Usage vs failure insights  
+- Maintenance impact visualization  
+
+---
+
+### 🔹 2. Data Explorer
+- Equipment-specific dataset view  
+- Feature inspection  
+- Structured tabular visualization  
+
+---
+
+### 🔹 3. Prediction Module
+- Equipment selection (Projector, AC, Lighting, Smartboard)  
+- Dynamic input parameters  
+- Real-time failure prediction  
+
+#### ✅ Hybrid Prediction Logic
+- ML model generates base probability  
+- Rule-based adjustments applied for critical conditions:
+  - Ghost touch issues  
+  - Poor touch responsiveness  
+  - Long maintenance gaps  
+  - Corrective maintenance history  
+
+---
+
+### 🔹 4. Explainability
+- Feature importance visualization  
+- Supports:
+  - Logistic Regression (coefficients)  
+  - Tree-based models (feature importance)  
+- Interactive Plotly charts  
+
+---
+
+### 🔹 5. Model Evaluation (Post-Mortem)
+- Model performance summary  
+- Stability insights  
+- Limitations and real-world considerations  
+
+---
+
+## 📊 Technologies Used
+
+- Python  
+- Streamlit  
+- Scikit-learn  
+- Pandas  
+- Plotly  
+- Matplotlib  
+
+---
+
+## 📁 Project Structure
+├── dashboard/
+│ └── app.py
+├── models/
+│ ├── model_registry.json
+│ ├── model_history.json
+│ └── trained_models.pkl
+├── data/
+│ └── datasets/
+├── scripts/
+│ ├── model_loader.py
+│ ├── model_registry_builder.py
+│ └── db_utils.py
+└── README.md
 
 ## 🖥️ How to Run
 
