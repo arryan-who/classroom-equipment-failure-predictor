@@ -50,15 +50,21 @@ def insert_data(df, version):
     df.to_sql("equipment_data", conn, if_exists="append", index=False)
     conn.close()
 
-def fetch_data(version, equipment):
+def fetch_data(version=None, equipment=None):
     conn = get_connection()
 
-    query = f"""
-    SELECT * FROM equipment_data
-    WHERE dataset_version = '{version}'
-    AND equipment_type = '{equipment}'
-    """
+    query = "SELECT * FROM equipment_data WHERE 1=1"
 
-    df = pd.read_sql(query, conn)
+    params = []
+
+    if version is not None:
+        query += " AND dataset_version = ?"
+        params.append(version)
+
+    if equipment is not None:
+        query += " AND equipment_type = ?"
+        params.append(equipment)
+
+    df = pd.read_sql(query, conn, params=params)
     conn.close()
     return df

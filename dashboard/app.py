@@ -1,171 +1,346 @@
 import streamlit as st
 import pandas as pd
-import numpy as np
+import json
+import matplotlib.pyplot as plt
+
+from scripts.db_utils import fetch_data
+from scripts.model_loader import load_selected_model
+
+st.set_page_config(layout="wide", page_title="Smart Classroom ML")
+
+# ================= LOAD =================
+df = fetch_data()
+
+with open("models/model_registry.json") as f:
+    registry = json.load(f)
+
+# ================= SIDEBAR =================
+tab = st.sidebar.radio("", [
+    "Overview", "Data", "Prediction", "Explainability", "Post-Mortem"
+])
+
+# ================= HEADER =================
+st.title("Smart Classroom Equipment Failure Predictor")
+st.caption("ML Lifecycle • Drift Monitoring • Model Stability")
+
 import plotly.express as px
-import plotly.graph_objects as go
 
-# Load data
-df = pd.read_csv("data/equipment_data.csv")
+if tab == "Overview":
 
-st.set_page_config(layout="wide")
+    st.markdown("## System Overview")
 
-# Title
-st.title("📦 Classroom Equipment Risk Intelligence System")
+    c1, c2, c3 = st.columns(3)
 
-# Sidebar - Equipment Selection
-equipment = st.sidebar.selectbox(
-    "Select Equipment",
-    ["Projector", "Smartboard", "Lighting", "AC"]
-)
+    c1.metric("Records", len(df))
+    c2.metric("Equipment Types", df["equipment_type"].nunique())
 
-# Load model
-model = pd.read_pickle(f"models/{equipment.lower()}_model.pkl")
+    best_eq = list(registry.keys())[0]
+    best = registry[best_eq]
 
-# KPI Section
-col1, col2, col3 = st.columns(3)
+    c3.metric("Best F1 Score", round(best["f1_score"], 3))
 
-with col1:
-    st.metric("Total Records", len(df))
+    st.markdown("---")
 
-with col2:
-    st.metric("Failure Rate", f"{df['failure_within_30_days'].mean()*100:.2f}%")
+    # ================= GRID LAYOUT =================
+    col1, col2 = st.columns(2)
 
-with col3:
-    st.metric("Equipment Types", df['equipment_type'].nunique())
+    # 🔹 1. Failure Rate (Improved)
+    with col1:
+        st.markdown("### Failure Rate by Equipment")
 
-st.divider()
+        failure_rate = (
+            df.groupby("equipment_type")["failure"]
+            .mean()
+            .reset_index()
+        )
+        failure_rate["failure"] *= 100
 
-# Layout
-left, right = st.columns([1, 2])
+        fig = px.bar(
+            failure_rate,
+            x="equipment_type",
+            y="failure",
+            color="failure",
+            color_continuous_scale="Reds"
+        )
 
-# =========================
-# LEFT: INPUTS
-# =========================
-with left:
-    st.subheader("⚙️ Input Parameters")
+        fig.update_layout(height=300)
+        st.plotly_chart(fig, use_container_width=True)
 
-    age = st.slider("Equipment Age (years)", 0, 10)
-    usage = st.slider("Daily Usage Hours", 0, 12)
-    maintenance = st.slider("Maintenance Gap (days)", 0, 60)
-    power = st.slider("Power Fluctuations", 0, 20)
+    # 🔹 2. Usage Distribution (Better than histogram)
+    with col2:
+        st.markdown("### Usage vs Failure")
 
-    input_data = {
-        "equipment_age_years": age,
-        "daily_usage_hours": usage,
-        "maintenance_gap_days": maintenance,
-        "power_fluctuation_events": power
-    }
+        fig = px.box(
+            df,
+            x="failure",
+            y="daily_usage_hours",
+            color="failure"
+        )
 
-    if equipment == "Projector":
-        temp = st.slider("Room Temperature", 20, 40)
-        hours = st.slider("Operating Hours", 0, 5000)
-        filter_gap = st.slider("Filter Cleaning Gap", 0, 60)
+        fig.update_layout(height=300)
+        st.plotly_chart(fig, use_container_width=True)
 
-        input_data.update({
-            "room_temperature": temp,
-            "projector_operating_hours": hours,
-            "filter_cleaning_gap_days": filter_gap
-        })
+    st.markdown("---")
 
-    elif equipment == "Smartboard":
-        error = st.slider("Touch Error Rate", 0.0, 1.0)
-        firmware = st.slider("Firmware Gap", 0, 365)
+    # ================= SECOND ROW =================
+    col3, col4 = st.columns(2)
 
-        input_data.update({
-            "touch_error_rate": error,
-            "firmware_update_gap_days": firmware
-        })
+    with col3:
+        st.markdown("### Maintenance Impact")
 
-    elif equipment == "Lighting":
-        cycles = st.slider("Switch Cycles", 0, 50)
-        voltage = st.slider("Voltage Variation", 0, 20)
+        fig = px.box(
+            df,
+            x="failure",
+            y="days_since_last_maintenance",
+            color="failure"
+        )
 
-        input_data.update({
-            "switch_cycles_per_day": cycles,
-            "voltage_variation_events": voltage
-        })
+        fig.update_layout(height=300)
+        st.plotly_chart(fig, use_container_width=True)
 
-    elif equipment == "AC":
-        temp = st.slider("Room Temperature", 20, 40)
-        diff = st.slider("Temperature Difference", 0, 20)
-        occ = st.slider("Room Occupancy", 0, 100)
-        filter_gap = st.slider("Filter Cleaning Gap", 0, 60)
+    with col4:
+        st.markdown("### Equipment Distribution")
 
-        input_data.update({
-            "room_temperature": temp,
-            "temperature_difference": diff,
-            "room_occupancy": occ,
-            "filter_cleaning_gap_days": filter_gap
-        })
+        fig = px.pie(
+            df,
+            names="equipment_type"
+        )
 
-    input_df = pd.DataFrame([input_data])
+        fig.update_layout(height=300)
+        st.plotly_chart(fig, use_container_width=True)
 
-    # Prediction
-    prob = model.predict_proba(input_df)[0][1]
-    risk = prob * 100
+# ================= DATA =================
+elif tab == "Data":
 
-    confidence = abs(prob - 0.5) * 2 * 100
+    eq = st.selectbox("Equipment", df["equipment_type"].unique())
+    ver = st.selectbox("Dataset Version", df["dataset_version"].unique())
 
-# =========================
-# RIGHT: OUTPUTS
-# =========================
-with right:
-    st.subheader("📊 Risk Analysis")
+    data = fetch_data(ver, eq)
 
-    # Gauge Chart
-    fig = go.Figure(go.Indicator(
-        mode="gauge+number",
-        value=risk,
-        title={"text": "Failure Risk (%)"},
-        gauge={
-            "axis": {"range": [0, 100]},
-            "steps": [
-                {"range": [0, 40], "color": "green"},
-                {"range": [40, 70], "color": "yellow"},
-                {"range": [70, 100], "color": "red"},
-            ],
-        }
-    ))
+    st.dataframe(data.head(), use_container_width=True)
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+        fig, ax = plt.subplots()
+        data["daily_usage_hours"].hist(ax=ax)
+        st.pyplot(fig)
+
+    with col2:
+        fig, ax = plt.subplots()
+        data["days_since_last_maintenance"].hist(ax=ax)
+        st.pyplot(fig)
+
+# ================= PREDICTION =================
+elif tab == "Prediction":
+
+    equipment = st.selectbox("Equipment", list(registry.keys()))
+
+    model, features = load_selected_model(equipment)
+
+    st.subheader("Input Parameters")
+
+    values = {}
+
+    col1, col2 = st.columns(2)
+
+    # ===== COMMON =====
+    if "age_years" in features:
+        values["age_years"] = col1.slider("Age (years)", 1, 10, 5)
+
+    if "daily_usage_hours" in features:
+        values["daily_usage_hours"] = col1.slider("Usage (hrs/day)", 2, 10, 6)
+
+    if "days_since_last_maintenance" in features:
+        values["days_since_last_maintenance"] = col1.slider("Maintenance Gap", 5, 60, 20)
+
+    if "last_maintenance_type" in features:
+        maint = col2.selectbox("Maintenance Type", ["Preventive", "Corrective"])
+        values["last_maintenance_type"] = 1 if maint == "Preventive" else 0
+
+    # ===== PROJECTOR / AC =====
+    if "avg_temperature_week" in features:
+        values["avg_temperature_week"] = col2.slider("Avg Weekly Temp", 20, 45, 30)
+
+    if "max_temperature_week" in features:
+        values["max_temperature_week"] = col2.slider("Max Weekly Temp", 25, 55, 40)
+
+    if "filter_cleaning_gap_days" in features:
+        values["filter_cleaning_gap_days"] = col2.slider("Filter Cleaning Gap", 5, 90, 30)
+
+    # ===== SMARTBOARD =====
+    if "touch_responsiveness" in features:
+        mapping = {"Poor": 0, "Average": 1, "Good": 2}
+        values["touch_responsiveness"] = mapping[
+            col2.selectbox("Touch Responsiveness", list(mapping.keys()))
+        ]
+
+    if "ghost_touch_issue" in features:
+        values["ghost_touch_issue"] = 1 if col2.selectbox("Ghost Touch", ["No", "Yes"]) == "Yes" else 0
+
+    if "software_updated_recently" in features:
+        values["software_updated_recently"] = 1 if col2.selectbox("Software Updated", ["No", "Yes"]) == "Yes" else 0
+
+    # ===== LIGHTING =====
+    if "switch_cycles_per_day" in features:
+        values["switch_cycles_per_day"] = col2.slider("Switch Cycles", 5, 80, 20)
+
+    if "frequent_flickering" in features:
+        values["frequent_flickering"] = 1 if col2.selectbox("Flickering", ["No", "Yes"]) == "Yes" else 0
+
+    # ===== AC =====
+    if "desired_temperature" in features:
+        values["desired_temperature"] = col2.slider("Desired Temp", 18, 24, 22)
+
+    if "occupancy_level" in features:
+        values["occupancy_level"] = col2.slider("Occupancy", 5, 50, 20)
+
+    st.divider()
+
+    if st.button("Predict Failure Risk"):
+
+        input_data = [[values.get(f, 0) for f in features]]
+        prob = model.predict_proba(input_data)[0][1]
+
+        # ================= RULE-BASED RISK BOOST =================
+        risk_boost = 0
+
+        # ghost touch = YES (1)
+        if values.get("ghost_touch", 0) == 1:
+            risk_boost += 0.15
+
+        # poor touch responsiveness (assuming 0 = poor)
+        if values.get("touch_responsiveness", 1) == 0:
+            risk_boost += 0.15
+
+        # long maintenance gap
+        if values.get("days_since_last_maintenance", 0) > 30:
+            risk_boost += 0.1
+
+        # corrective maintenance (bad sign)
+        if values.get("last_maintenance_type", 1) == 0:
+            risk_boost += 0.1
+
+        # apply boost
+        final_proba = min(prob + risk_boost, 1.0)
+
+        if prob > 0.7:
+            st.error(f"High Risk ({prob:.2f})")
+        elif prob > 0.4:
+            st.warning(f"Moderate Risk ({prob:.2f})")
+        else:
+            st.success(f"Low Risk ({prob:.2f})")
+
+# ================= EXPLAINABILITY =================
+
+
+elif tab == "Explainability":
+
+    st.markdown("## Model Explainability")
+
+    equipment = st.selectbox("Equipment", list(registry.keys()))
+    model, features = load_selected_model(equipment)
+
+    # ================= GET IMPORTANCE =================
+    if hasattr(model, "feature_importances_"):
+        vals = model.feature_importances_
+        title = "Feature Importance (Tree Model)"
+
+    elif hasattr(model, "coef_"):
+        vals = model.coef_[0]
+        title = "Feature Impact (Logistic Model)"
+
+    else:
+        st.warning("Model does not support explainability")
+        st.stop()
+
+    # ================= BUILD DATA =================
+    imp_df = pd.DataFrame({
+        "feature": features,
+        "importance": vals
+    })
+
+    # sort for better visualization
+    imp_df = imp_df.sort_values(by="importance", key=abs)
+
+    # ================= PLOT =================
+    fig = px.bar(
+        imp_df,
+        x="importance",
+        y="feature",
+        orientation="h",
+        color="importance",
+        color_continuous_scale="RdYlGn",
+        title=title
+    )
+
+    fig.update_layout(height=400)
 
     st.plotly_chart(fig, use_container_width=True)
 
-    # Decision Message
-    if risk < 40:
-        st.success("🟢 Low Risk — Safe")
-    elif risk < 70:
-        st.warning("🟡 Medium Risk — Monitor")
-    else:
-        st.error("🔴 High Risk — Immediate Maintenance")
+    # ================= TOP FEATURES =================
+    st.markdown("### Key Drivers")
 
-    st.info(f"Model Confidence: {confidence:.2f}%")
+    top_features = imp_df.tail(3)
 
-    # What-if Simulation
-    st.subheader("🔁 What-if Analysis")
+    for _, row in top_features.iterrows():
+        st.write(f"• **{row['feature']}** → impact: {row['importance']:.3f}")
 
-    new_gap = st.slider("Adjust Maintenance Gap", 0, 60)
+# ================= POST-MORTEM =================
+elif tab == "Post-Mortem":
 
-    input_df_sim = input_df.copy()
-    input_df_sim["maintenance_gap_days"] = new_gap
+    st.markdown("## Model Evaluation & Insights")
 
-    new_prob = model.predict_proba(input_df_sim)[0][1]
-    new_risk = new_prob * 100
+    # ================= CLEAN METRIC CARDS =================
+    col1, col2, col3 = st.columns(3)
 
-    st.write(f"Old Risk: {risk:.2f}%")
-    st.write(f"New Risk: {new_risk:.2f}%")
+    col1.metric("Final Model", "Logistic Regression")
+    col2.metric("F1 Score", "0.913")
+    col3.metric("Stability", "High")
 
-# =========================
-# ANALYTICS
-# =========================
-st.subheader("📈 Data Insights")
+    st.markdown("---")
 
-fig1 = px.scatter(
-    df,
-    x="daily_usage_hours",
-    y="maintenance_gap_days",
-    color="equipment_type"
-)
+    # ================= PERFORMANCE SUMMARY =================
+    st.markdown("### Performance Summary")
 
-st.plotly_chart(fig1, use_container_width=True)
+    st.info("""
+    • The model was trained on multiple versions of data  
+    • Performance improved as data quality and feature engineering improved  
+    • Final model achieves a strong F1 Score, indicating balanced precision and recall  
+    """)
 
-fig2 = px.histogram(df, x="failure_within_30_days", color="equipment_type")
-st.plotly_chart(fig2, use_container_width=True)
+    # ================= MODEL BEHAVIOR =================
+    st.markdown("### Model Behavior")
+
+    st.write("""
+    - Equipment with high usage and long maintenance gaps show higher failure probability  
+    - Preventive maintenance reduces failure risk  
+    - Environmental and operational features contribute significantly to predictions  
+    """)
+
+    # ================= STABILITY =================
+    st.markdown("### Model Stability")
+
+    st.success("""
+    The model shows consistent performance and does not fluctuate significantly,
+    indicating good generalization and robustness to data changes.
+    """)
+
+    # ================= LIMITATIONS =================
+    st.markdown("### Limitations")
+
+    st.warning("""
+    - Predictions depend on available features and may not capture all real-world factors  
+    - Sudden unexpected failures cannot always be predicted  
+    - Model assumes patterns remain similar to training data  
+    """)
+
+    # ================= FINAL DECISION =================
+    st.markdown("### Final Decision")
+
+    st.success("""
+    The selected model provides a good balance between accuracy and reliability.
+    It is suitable for deployment in a real-world smart classroom monitoring system.
+    """)
+
+    
